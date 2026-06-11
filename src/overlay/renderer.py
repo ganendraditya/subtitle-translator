@@ -58,10 +58,11 @@ class OverlayWindow(QWidget):
             self.update()
 
     def paintEvent(self, event) -> None:  # noqa: N802
-        """Paint the overlay text."""
+        """Paint the overlay text (multi-line supported)."""
         if not self._text:
             return
 
+        lines = self._text.split("\n")
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -69,25 +70,31 @@ class OverlayWindow(QWidget):
         painter.setFont(font)
         metrics = QFontMetrics(font)
 
-        text_rect = metrics.boundingRect(self._text)
-        x, y = self._calculate_position(text_rect.width(), text_rect.height())
+        line_height = metrics.height()
+        padding_y = 10
+        total_height = len(lines) * line_height + padding_y * 2
+        max_line_width = max(metrics.boundingRect(l).width() for l in lines) if lines else 0
+
+        x, y = self._calculate_position(max_line_width, total_height)
 
         # Semi-transparent background
         bg_color = QColor(0, 0, 0)
         bg_color.setAlphaF(self._opacity * 0.6)
         painter.fillRect(
-            x - 20, y - 10,
-            text_rect.width() + 40, text_rect.height() + 20,
+            x - 20, y - padding_y,
+            max_line_width + 40, total_height,
             bg_color
         )
 
-        # Draw text with outline for readability
-        painter.setPen(QColor(0, 0, 0))
-        for dx, dy in [(-1, -1), (-1, 1), (1, -1), (1, 1), (0, -1), (0, 1), (-1, 0), (1, 0)]:
-            painter.drawText(x + dx, y + dy, self._text)
+        # Draw each line with outline
+        for i, line in enumerate(lines):
+            line_y = y + i * line_height + metrics.ascent()
+            painter.setPen(QColor(0, 0, 0))
+            for dx, dy in [(-1, -1), (-1, 1), (1, -1), (1, 1), (0, -1), (0, 1), (-1, 0), (1, 0)]:
+                painter.drawText(x + dx, line_y + dy, line)
+            painter.setPen(QColor(255, 255, 255))
+            painter.drawText(x, line_y, line)
 
-        painter.setPen(QColor(255, 255, 255))
-        painter.drawText(x, y, self._text)
         painter.end()
 
     def _calculate_position(self, text_width: int, text_height: int) -> tuple[int, int]:
