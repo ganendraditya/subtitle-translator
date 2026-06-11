@@ -13,6 +13,8 @@ class ScreenCapture:
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._callbacks: list[Callable[[np.ndarray], None]] = []
+        self._frame_interval = 1  # Process every Nth frame
+        self._frame_counter = 0
 
     def start(self, target_fps: int = 30) -> None:
         """Start capturing screen at target_fps."""
@@ -42,6 +44,10 @@ class ScreenCapture:
         """Register a callback to receive frames."""
         self._callbacks.append(callback)
 
+    def set_frame_interval(self, interval: int) -> None:
+        """Process every Nth frame (interval=3 means 33% of frames processed)."""
+        self._frame_interval = max(1, interval)
+
     def _capture_loop(self, target_fps: int) -> None:
         """Internal capture loop running in a thread."""
         interval = 1.0 / target_fps
@@ -50,7 +56,9 @@ class ScreenCapture:
             start = time.perf_counter()
             frame = self._camera.grab()
             if frame is not None:
-                self._notify(frame)
+                self._frame_counter += 1
+                if self._frame_counter % self._frame_interval == 0:
+                    self._notify(frame)
             elapsed = time.perf_counter() - start
             sleep_time = interval - elapsed
             if sleep_time > 0:
