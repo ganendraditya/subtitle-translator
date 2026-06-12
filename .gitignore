@@ -52,6 +52,9 @@ ch_ppocr_mobile_v2.0_cls_infer/
 en_PP-OCRv3_det_infer/
 en_PP-OCRv3_rec_infer/
 
+# User config
+config.json
+
 # Model downloads
 models/
 
