@@ -52,7 +52,13 @@ ch_ppocr_mobile_v2.0_cls_infer/
 en_PP-OCRv3_det_infer/
 en_PP-OCRv3_rec_infer/
 
-# Allow test files to be tracked if needed
-# But exclude generated outputs
+# Model downloads
+models/
+
+# Benchmark/test scripts (not part of the app)
+bench_*
+test_*
+
+# Generated outputs
 test_output/
 tmp/

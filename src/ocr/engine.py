@@ -1,54 +1,66 @@
-from paddleocr import PaddleOCR
+"""OCREngine with auto GPU/CPU detection and optimized defaults."""
+
+import easyocr
 import numpy as np
 from typing import Any
+import torch
 
 
 class OCREngine:
-    """Wrapper around PaddleOCR for screen text detection."""
+    """Wrapper around EasyOCR for screen text detection.
 
-    _ocr: PaddleOCR | None = None
+    Auto-detects GPU availability and adjusts inference parameters for CPU.
+    """
+
+    _ocr = None
+    _use_gpu = False  # Will be detected on first use
 
     @classmethod
-    def get_instance(cls) -> "PaddleOCR":
-        """Get or create the singleton PaddleOCR instance."""
+    def get_instance(cls) -> "easyocr.Reader":
         if cls._ocr is None:
-            # Try GPU first, fallback to CPU
-            try:
-                cls._ocr = PaddleOCR(
-                    use_angle_cls=False,
-                    lang="en",
-                    use_gpu=True,
-                    show_log=False,
-                )
-                # Quick test to ensure GPU works
-                dummy = np.zeros((32, 32, 3), dtype=np.uint8)
-                cls._ocr.ocr(dummy, cls=False)
-            except Exception as e:
-                # Fallback to CPU
-                print(f"[OCR] GPU initialization failed ({e}). Falling back to CPU.")
-                cls._ocr = PaddleOCR(
-                    use_angle_cls=False,
-                    lang="en",
-                    use_gpu=False,
-                    show_log=False,
-                )
+            cls._use_gpu = torch.cuda.is_available()
+            print(f"[OCREngine] CUDA: {cls._use_gpu}")
+            cls._ocr = easyocr.Reader(["en"], gpu=cls._use_gpu)
         return cls._ocr
 
+    @classmethod
+    def get_scale(cls) -> float:
+        """Return resize scale. GPU gets higher scale for accuracy, CPU lower for speed."""
+        cls.get_instance()
+        return 0.7 if cls._use_gpu else 0.5
+
     @staticmethod
-    def run(frame: np.ndarray, resize_scale: float = 0.5, conf_thresh: float = 0.7) -> list[dict[str, Any]]:
-        """Run OCR with resize and confidence filtering."""
+    def run(
+        frame: np.ndarray,
+        resize_scale: float | None = None,
+        conf_thresh: float = 0.7,
+        crop_bottom: float = 0.15,
+    ) -> list[dict[str, Any]]:
+        """Run OCR with EasyOCR.
+
+        Args:
+            frame: Full screen frame.
+            resize_scale: Resize factor. Auto-chooses 0.7 (GPU) / 0.5 (CPU) if None.
+            conf_thresh: Minimum confidence threshold.
+            crop_bottom: Fraction of bottom to crop (0.15 = bottom 15%).
+        """
         import cv2
 
-        # Resize frame
+        h = frame.shape[0]
+        y1 = int(h * (1.0 - crop_bottom))
+        frame = frame[y1:h, :]
+
+        if resize_scale is None:
+            resize_scale = OCREngine.get_scale()
+
         if resize_scale != 1.0:
             frame = cv2.resize(frame, (0, 0), fx=resize_scale, fy=resize_scale)
 
         ocr = OCREngine.get_instance()
-        result = ocr.ocr(frame, cls=False)
+        result = ocr.readtext(frame)
 
         detections = []
-        for line in result[0] if result else []:
-            bbox, (text, confidence) = line
+        for bbox, text, confidence in result:
             if confidence >= conf_thresh:
                 detections.append({
                     "bbox": bbox,

@@ -7,14 +7,16 @@ from overlay.renderer import OverlayWindow
 from ocr.engine import OCREngine
 from subtitle.history import SubtitleHistory
 from subtitle.scorer import SubtitleScorer
+from translate.engine import TranslationEngine
+import torch
 import numpy as np
+import cv2
 
 
 class App:
     def __init__(self) -> None:
         self._capture = ScreenCapture()
         self._overlay: OverlayWindow | None = None
-        self._ocr = OCREngine()
         self._history: SubtitleHistory | None = None
         self._scorer: SubtitleScorer | None = None
         self._frame_height: int | None = None
@@ -23,22 +25,25 @@ class App:
         self._ocr_count = 0
         self._last_fps_time = time.perf_counter()
         self._last_ocr_time = 0.0
-        self._ocr_fps = 0
-        self._capture_fps = 0
         self._ocr_latency_ms = 0
+        self._capture_fps = 0
 
     def run(self) -> None:
         app = QApplication(sys.argv)
 
         self._overlay = OverlayWindow()
-        self._overlay.set_text("Sprint 3: Initializing...")
+        self._overlay.set_text("Sprint 4: Initializing...")
         self._overlay.set_position("bottom")
 
+        OCREngine.get_instance()  # Ensure singleton is initialized
+        use_gpu = torch.cuda.is_available()
+        self._translation_engine = TranslationEngine(use_gpu=use_gpu)
+
         self._capture.register_callback(self._on_frame)
-        self._capture.set_frame_interval(3)  # Process 1 of every 3 frames
+        self._capture.set_frame_interval(5)  # Process 1 of every 5 frames
         self._capture.start(target_fps=30)
 
-        print("[App] Sprint 3 running: Capture + OCR + Subtitle filtering.")
+        print("[App] Sprint 4 running: Capture + OCR + Subtitle filtering + Translation.")
         print("[App] Close the overlay window or press Ctrl+C to exit.")
         sys.stdout.flush()
 
@@ -58,7 +63,7 @@ class App:
         if now - self._last_ocr_time >= 1.0:
             self._last_ocr_time = now
             ocr_start = time.perf_counter()
-            detections = self._ocr.run(frame, resize_scale=0.5, conf_thresh=0.7)
+            detections = OCREngine.run(frame, resize_scale=None, conf_thresh=0.7)
             ocr_elapsed = time.perf_counter() - ocr_start
             self._ocr_latency_ms = round(ocr_elapsed * 1000)
             self._ocr_count += 1
@@ -69,16 +74,24 @@ class App:
             # Get best candidate
             best_entry = self._history.get_best_entry(self._scorer)
             if best_entry is not None:
-                # Display the best subtitle text and its score
                 score = self._scorer.score(best_entry)
-                text = best_entry.text.strip()
+                original_text = best_entry.text.strip()
+                
+                # Translate the detected text
+                try:
+                    translated_results = self._translation_engine.translate([original_text], target_lang="en") # Target English for now
+                    translated_text = translated_results[0]["translation"] if translated_results else "[Translation Error]"
+                except RuntimeError as e:
+                    translated_text = f"[Trans. Error: {e}]"
+                
                 overlay_text = (
-                    f"Sprint 3 | Cap: {self._capture_fps} FPS | OCR: {self._ocr_latency_ms}ms\n"
-                    f"Subtitle: [{score:.2f}] \"{text}\""
+                    f"Sprint 4 | Cap: {self._capture_fps} FPS | OCR: {self._ocr_latency_ms}ms\n"
+                    f"Original: \"{original_text}\"\n"
+                    f"Translated: \"{translated_text}\""
                 )
             else:
                 overlay_text = (
-                    f"Sprint 3 | Cap: {self._capture_fps} FPS | OCR: {self._ocr_latency_ms}ms\n"
+                    f"Sprint 4 | Cap: {self._capture_fps} FPS | OCR: {self._ocr_latency_ms}ms\n"
                     f"No subtitle detected"
                 )
             self._overlay.set_text(overlay_text)
