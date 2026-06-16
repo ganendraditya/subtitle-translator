@@ -4,6 +4,16 @@ Real-time screen captured subtitle translator. Utilizing object detection model 
 
 > **Status:** Active development — pre-alpha.
 
+## Sprints
+
+1. Screen capture + PyQt6 overlay
+2. PaddleOCR/EasyOCR integration
+3. Subtitle filtering, history, fuzzy matching
+4. Translation engine (MarianMT + NLLB), GPU/CPU fallback
+5. System tray, settings dialog, startup shortcut
+
+**Currently:** gathering and annotating data to train YOLO for subtitle region detection.
+
 ## Architecture
 
 - **Screen capture**: dxcam
@@ -25,16 +35,3 @@ Real-time screen captured subtitle translator. Utilizing object detection model 
 | German | ✅ | ✅ 2-hop |
 | Spanish | ✅ | ✅ 2-hop |
 | Arabic | ✅ | ✅ 2-hop |
-
-## Sprint History
-
-| Sprint | What |
-|:------:|------|
-| 1 | Screen capture + PyQt6 overlay |
-| 2 | PaddleOCR/EasyOCR integration |
-| 3 | Subtitle filtering, history, fuzzy matching |
-| 4 | Translation engine (MarianMT + NLLB), GPU/CPU fallback |
-| 5 | System tray, settings dialog, startup shortcut |
-| 6 | YOLOv26 detection, MarianMT 2-hop, PaddleOCR multilingual, language filter |
-
-**Currently on:** Sprint 6 — training YOLO for subtitle region detection.
