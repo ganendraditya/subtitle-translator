@@ -6,6 +6,8 @@ DEFAULT = {
     "target_lang": "id",
     "crop_bottom": 0.15,
     "conf_thresh": 0.7,
+    "capture_crop": {"left": 0.0, "right": 1.0},
+    "yolo_model": "models/yolov8s-subtitle.pt",
 }
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config.json")

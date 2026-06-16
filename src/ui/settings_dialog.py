@@ -1,10 +1,10 @@
-from PyQt6.QtWidgets import QDialog, QFormLayout, QComboBox, QPushButton, QHBoxLayout, QVBoxLayout, QMessageBox
+from PyQt6.QtWidgets import QDialog, QFormLayout, QComboBox, QPushButton, QHBoxLayout, QVBoxLayout, QMessageBox, QDoubleSpinBox
 
 LANGUAGES = [
     ("English", "en"),
     ("Indonesian", "id"),
     ("Japanese", "ja"),
-    ("Chinese (Simplified)", "zh"),
+    ("Chinese (zh)", "zh"),
     ("Korean", "ko"),
     ("French", "fr"),
     ("German", "de"),
@@ -43,6 +43,19 @@ class SettingsDialog(QDialog):
         self._tgt_combo.currentIndexChanged.connect(self._validate)
         form.addRow("Target language:", self._tgt_combo)
 
+        crop = self._settings.get("capture_crop", {"left": 0.0, "right": 1.0})
+        self._crop_left = QDoubleSpinBox()
+        self._crop_left.setRange(0.0, 100.0)
+        self._crop_left.setSuffix(" %")
+        self._crop_left.setValue(crop["left"] * 100)
+        form.addRow("Crop left (%):", self._crop_left)
+
+        self._crop_right = QDoubleSpinBox()
+        self._crop_right.setRange(0.0, 100.0)
+        self._crop_right.setSuffix(" %")
+        self._crop_right.setValue((1.0 - crop["right"]) * 100)
+        form.addRow("Crop right (%):", self._crop_right)
+
         layout.addLayout(form)
 
         buttons = QHBoxLayout()
@@ -68,4 +81,8 @@ class SettingsDialog(QDialog):
             return
         self._settings.source_lang = src
         self._settings.target_lang = tgt
+        left = self._crop_left.value() / 100.0
+        right = 1.0 - self._crop_right.value() / 100.0
+        if left < right:
+            self._settings.set("capture_crop", {"left": left, "right": right})
         self.accept()

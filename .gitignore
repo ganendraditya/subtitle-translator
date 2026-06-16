@@ -1,67 +1,33 @@
 # Python
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
+*.pyc
+*.pyo
 *.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# Virtual environments
+dist/
+build/
+.venv/
 venv/
-env/
-ENV/
-env.bak/
-venv.bak/
+
+# Config
+config.json
+
+# Model weights
+*.pt
+*.pth
+*.pth.part
+weights/
+
+# CLIP text encoder
+mobileclip*.ts
 
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
 
-# OS
-.DS_Store
-Thumbs.db
+# Generated
+*.log
+test_frame.png
 
-# Project specific
+# SSH keys
 github_deploy_key
 github_deploy_key.pub
-*.log
-benchmark_result.txt
-
-# PaddleOCR model cache (if accidentally placed here)
-ch_ppocr_mobile_v2.0_cls_infer/
-en_PP-OCRv3_det_infer/
-en_PP-OCRv3_rec_infer/
-
-# User config
-config.json
-
-# Model downloads
-models/
-
-# Benchmark/test scripts (not part of the app)
-bench_*
-test_*
-
-# Generated outputs
-test_output/
-tmp/
