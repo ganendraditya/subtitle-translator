@@ -1,20 +1,8 @@
 # Subtitle Translator
 
-Real-time screen subtitle translator
-utilizing object detection for subtitle localization, OCR to identify text, and translation with GPU acceleration.
+Real-time screen captured subtitle translator. Utilizing object detection model for subtitle localization, OCR to identify the text, and neural machine translation.
 
 > **Status:** Active development — pre-alpha.
-
-## Pipeline
-
-```
-Screen capture (dxcam)
-    → YOLOv26 subtitle region detection (optional, fallback to fixed crop)
-    → PaddleOCR GPU (multilingual, subprocess worker)
-    → Language filter (Unicode script detection)
-    → MarianMT 2-hop translation (src → en → target)
-    → PyQt6 transparent overlay (dual: top + bottom)
-```
 
 ## Architecture
 
