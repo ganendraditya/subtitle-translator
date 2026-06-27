@@ -4,22 +4,10 @@ Real-time screen subtitle translator for Windows. It captures the screen or a se
 
 > Status: active development, pre-alpha.
 
-## What Is Included
-
-- Application source code
-- Lightweight unit tests
-
-## What Is Not Included
-
-- Training datasets
-- YOLO model binaries (`.onnx`, `.engine`, `.pt`)
-- Local `config.json`
-- Internal notes, agent files, and training assets
-
 ## Stack
 
 - Screen/window capture: dxcam and Windows `PrintWindow`
-- Subtitle detection: YOLO via Ultralytics, using `.onnx` and optional TensorRT `.engine`
+- Subtitle detection: YOLO via Ultralytics and ONNX Runtime
 - OCR: PaddleOCR in a subprocess, with EasyOCR fallback code still present
 - Translation: MarianMT / Helsinki-NLP, with 2-hop routing through English
 - Overlay/UI: PyQt6 tray app and transparent click-through overlay windows
@@ -31,19 +19,13 @@ python -m venv venv
 .\venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-Place your subtitle detector model at:
+Download or export a compatible subtitle detector model, then place it at:
 
 ```text
 yolo/epoch51.onnx
 ```
 
-TensorRT is optional. If you have a compatible TensorRT runtime and engine, place it at:
-
-```text
-yolo/epoch51.engine
-```
-
-The default backend is ONNX.
+The app expects an ONNX YOLO detector at that path. Large model files are distributed outside the Git repository, for example through GitHub Releases.
 
 ## Run
 
