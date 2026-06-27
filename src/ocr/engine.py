@@ -35,7 +35,7 @@ def is_subtitle_candidate(bbox: list, text: str, confidence: float, frame_h: int
     if w_ratio < 0.04:
         return False
     aspect = bw / bh if bh > 0 else 0
-    if aspect < 1.5:
+    if aspect < 2.0:
         return False
     cx = (min(xs) + max(xs)) / 2
     cy = (min(ys) + max(ys)) / 2
@@ -50,11 +50,11 @@ def is_subtitle_candidate(bbox: list, text: str, confidence: float, frame_h: int
 class _PaddleOCRClient:
     """Manages PaddleOCR subprocess (GPU) - avoids import conflict with PyTorch."""
 
-    def __init__(self):
+    def __init__(self, device: str = "gpu", lang: str = "en"):
         worker_path = os.path.join(os.path.dirname(__file__), "paddleocr_worker.py")
         env = os.environ.copy()
         self._proc = subprocess.Popen(
-            [sys.executable, "-u", worker_path],
+            [sys.executable, "-u", worker_path, "--device", device, "--lang", lang],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -80,11 +80,18 @@ class _PaddleOCRClient:
 
     def close(self):
         if self._proc:
-            msg = json.dumps({"type": "shutdown"}).encode("utf-8")
-            self._proc.stdin.write(struct.pack("<I", len(msg)))
-            self._proc.stdin.write(msg)
-            self._proc.stdin.flush()
-            self._proc.wait(timeout=5)
+            try:
+                msg = json.dumps({"type": "shutdown"}).encode("utf-8")
+                self._proc.stdin.write(struct.pack("<I", len(msg)))
+                self._proc.stdin.write(msg)
+                self._proc.stdin.flush()
+                self._proc.wait(timeout=3)
+            except Exception:
+                try:
+                    self._proc.kill()
+                except Exception:
+                    pass
+            self._proc = None
 
 
 class OCREngine:
@@ -94,16 +101,27 @@ class OCREngine:
     _use_gpu = False
     _paddle: _PaddleOCRClient | None = None
     _paddle_mode = False
+    _paddle_lang: str = "en"
+    _paddle_device: str = "gpu"
 
     @classmethod
     def use_paddle(cls, enabled: bool = True):
         cls._paddle_mode = enabled
 
     @classmethod
-    def get_instance(cls):
+    def get_instance(cls, device: str = "gpu", lang: str = "en"):
         if cls._paddle_mode:
             if cls._paddle is None:
-                cls._paddle = _PaddleOCRClient()
+                cls._paddle = _PaddleOCRClient(device=device, lang=lang)
+                cls._paddle_lang = lang
+                cls._paddle_device = device
+            elif cls._paddle_lang != lang or cls._paddle_device != device:
+                # Language changed — restart worker
+                print(f"[OCREngine] Restarting PaddleOCR worker: lang={lang}, device={device}")
+                cls._paddle.close()
+                cls._paddle = _PaddleOCRClient(device=device, lang=lang)
+                cls._paddle_lang = lang
+                cls._paddle_device = device
         else:
             if cls._easyocr is None:
                 import torch
@@ -129,19 +147,22 @@ class OCREngine:
         crop_regions: list[tuple[float, float]] | None = None,
         h_crop: tuple[float, float] = (0.0, 1.0),
         yolo_bboxes: list[list] | None = None,
-    ) -> list[dict[str, Any]]:
+        device: str = "gpu",
+        source_lang: str = "en",
+    ) -> list[list[dict[str, Any]]]:
+        """Return detections grouped by YOLO bbox crop. Each group = one subtitle region."""
         import cv2
 
         if resize_scale is None:
             resize_scale = cls.get_scale()
 
-        cls.get_instance()
+        cls.get_instance(device=device, lang=source_lang)
         h, w = frame.shape[:2]
         x_l = int(w * h_crop[0])
         x_r = int(w * h_crop[1])
         if x_l >= x_r:
             x_l, x_r = 0, w
-        detections = []
+        groups = []
 
         if yolo_bboxes:
             crops = []
@@ -174,6 +195,7 @@ class OCREngine:
             else:
                 raw_dets = cls._run_easyocr_region(region)
 
+            group = []
             for det in raw_dets:
                 if det.get("confidence", 0) < conf_thresh:
                     continue
@@ -184,13 +206,16 @@ class OCREngine:
                 ]
                 if not is_subtitle_candidate(adjusted_bbox, det["text"], det["confidence"], h, w):
                     continue
-                detections.append({
+                group.append({
                     "bbox": adjusted_bbox,
                     "text": det["text"],
                     "confidence": det["confidence"],
                 })
+            if group:
+                print(f"[OCR] crop({y1},{y2},{cx1},{cx2}) dets: {[d['text'] for d in group]}")
+                groups.append(group)
 
-        return detections
+        return groups
 
     @classmethod
     def _run_easyocr_region(cls, region: np.ndarray) -> list[dict[str, Any]]:

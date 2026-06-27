@@ -11,22 +11,39 @@ venv/
 # Config
 config.json
 
-# Model weights
+# Model weights and generated model outputs
 *.pt
 *.pth
 *.pth.part
+*.onnx
+*.engine
 weights/
+runs/
+outputs/
+yolo/*.onnx
+yolo/*.engine
+
+# Datasets and generated samples
+dataset/
+dataset/*.zip
+test_frame.png
 
 # CLIP text encoder
 mobileclip*.ts
 
+# Logs
+*.log
+
+# Local tool settings
+.ultralytics/
+AGENTS.md
+.agents/
+skills-lock.json
+docs/
+
 # IDE
 .vscode/
 .idea/
-
-# Generated
-*.log
-test_frame.png
 
 # SSH keys
 github_deploy_key

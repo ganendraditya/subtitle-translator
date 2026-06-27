@@ -56,6 +56,16 @@ class SettingsDialog(QDialog):
         self._crop_right.setValue((1.0 - crop["right"]) * 100)
         form.addRow("Crop right (%):", self._crop_right)
 
+        self._device_combo = QComboBox()
+        self._device_combo.addItem("Auto (detect GPU)", "auto")
+        self._device_combo.addItem("CPU", "cpu")
+        self._device_combo.addItem("GPU", "gpu")
+        device = self._settings.get("device", "auto")
+        idx = self._device_combo.findData(device)
+        if idx >= 0:
+            self._device_combo.setCurrentIndex(idx)
+        form.addRow("Device:", self._device_combo)
+
         layout.addLayout(form)
 
         buttons = QHBoxLayout()
@@ -85,4 +95,5 @@ class SettingsDialog(QDialog):
         right = 1.0 - self._crop_right.value() / 100.0
         if left < right:
             self._settings.set("capture_crop", {"left": left, "right": right})
+        self._settings.set("device", self._device_combo.currentData())
         self.accept()

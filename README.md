@@ -1,37 +1,79 @@
 # Subtitle Translator
 
-Real-time screen captured subtitle translator. Utilizing object detection model for subtitle localization, OCR to identify the text, and neural machine translation.
+Real-time screen subtitle translator for Windows. It captures the screen or a selected window, detects subtitle regions, runs OCR, translates the text, and displays a click-through PyQt overlay.
 
-> **Status:** Active development — pre-alpha.
+> Status: active development, pre-alpha.
 
-## Sprints
+## What Is Included
 
-1. Screen capture + PyQt6 overlay
-2. PaddleOCR/EasyOCR integration
-3. Subtitle filtering, history, fuzzy matching
-4. Translation engine (MarianMT + NLLB), GPU/CPU fallback
-5. System tray, settings dialog, startup shortcut
+- Application source code
+- Lightweight unit tests
 
-**Currently:** gathering and annotating data to train YOLO for subtitle region detection.
+## What Is Not Included
 
-## Architecture
+- Training datasets
+- YOLO model binaries (`.onnx`, `.engine`, `.pt`)
+- Local `config.json`
+- Internal notes, agent files, and training assets
 
-- **Screen capture**: dxcam
-- **Subtitle detection**: YOLOv26 (user-trained, single class "subtitle")
-- **OCR**: PaddleOCR 2.10 GPU
-- **Translation**: MarianMT (Helsinki-NLP opus-mt), 2-hop via English for unsupported direct pairs
-- **Overlay**: PyQt6 transparent windows
+## Stack
+
+- Screen/window capture: dxcam and Windows `PrintWindow`
+- Subtitle detection: YOLO via Ultralytics, using `.onnx` and optional TensorRT `.engine`
+- OCR: PaddleOCR in a subprocess, with EasyOCR fallback code still present
+- Translation: MarianMT / Helsinki-NLP, with 2-hop routing through English
+- Overlay/UI: PyQt6 tray app and transparent click-through overlay windows
+
+## Setup
+
+```powershell
+python -m venv venv
+.\venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+Place your subtitle detector model at:
+
+```text
+yolo/epoch51.onnx
+```
+
+TensorRT is optional. If you have a compatible TensorRT runtime and engine, place it at:
+
+```text
+yolo/epoch51.engine
+```
+
+The default backend is ONNX.
+
+## Run
+
+```powershell
+.\venv\Scripts\python.exe run.py
+.\venv\Scripts\python.exe run.pyw
+```
+
+Use `run.py` for debugging with terminal logs. Use `run.pyw` for no-console startup.
+
+## Test
+
+```powershell
+.\venv\Scripts\python.exe -m unittest discover tests
+```
 
 ## Languages
 
-| Language | OCR | Translation |
-|----------|:---:|:-----------:|
-| English | ✅ | ✅ |
-| Indonesian | ✅ | ✅ 2-hop |
-| Japanese | ✅ | ✅ 2-hop |
-| Chinese (Simplified + Traditional) | ✅ | ✅ 2-hop |
-| Korean | ✅ | ✅ 2-hop |
-| French | ✅ | ✅ 2-hop |
-| German | ✅ | ✅ 2-hop |
-| Spanish | ✅ | ✅ 2-hop |
-| Arabic | ✅ | ✅ 2-hop |
+Supported UI language codes:
+
+| Code | Language |
+| --- | --- |
+| `en` | English |
+| `id` | Indonesian |
+| `ja` | Japanese |
+| `zh` | Chinese |
+| `ko` | Korean |
+| `fr` | French |
+| `de` | German |
+| `es` | Spanish |
+| `ar` | Arabic |
+
+Translation caveat: Japanese and Korean use non-standard Helsinki model IDs internally, so the app maps UI codes `ja` and `ko` before loading MarianMT models.

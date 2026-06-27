@@ -28,6 +28,26 @@ for p in [
     if os.path.exists(p):
         os.environ["PATH"] = p + ";" + os.environ.get("PATH", "")
 
+# Parse args
+_device = "gpu"
+_lang = "en"
+for i, arg in enumerate(sys.argv):
+    if arg == "--device" and i + 1 < len(sys.argv):
+        _device = sys.argv[i + 1].lower()
+    if arg == "--lang" and i + 1 < len(sys.argv):
+        _lang = sys.argv[i + 1].lower()
+
+use_gpu = _device != "cpu"
+log(f"Device: {_device} (use_gpu={use_gpu}), Lang: {_lang}")
+
+# Map source language codes to PaddleOCR lang codes
+_LANG_MAP = {
+    "en": "en", "id": "en", "fr": "fr", "de": "de", "es": "es",
+    "ja": "japan", "zh": "ch", "ko": "korean", "ar": "arabic",
+}
+ocr_lang = _LANG_MAP.get(_lang, "en")
+log(f"PaddleOCR lang: {ocr_lang}")
+
 log("Importing PaddleOCR")
 from paddleocr import PaddleOCR
 
@@ -38,7 +58,7 @@ def get_ocr() -> PaddleOCR:
     global _ocr
     if _ocr is None:
         log("Creating PaddleOCR instance")
-        _ocr = PaddleOCR(use_angle_cls=False, lang=["en","ch","japan","korean","arabic"], use_gpu=True, show_log=False)
+        _ocr = PaddleOCR(use_angle_cls=False, lang=ocr_lang, use_gpu=use_gpu, show_log=False)
         log("PaddleOCR ready")
     return _ocr
 

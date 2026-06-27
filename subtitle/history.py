@@ -23,7 +23,7 @@ class SubtitleEntry:
         self.count += 1
         self.bboxes.append(bbox)
         self.confidences.append(confidence)
-        if new_text and confidence > self.best_conf:
+        if new_text and _should_replace_best_text(self.best_text, self.best_conf, new_text, confidence):
             self.best_text = new_text
             self.best_conf = confidence
 
@@ -54,14 +54,53 @@ class SubtitleEntry:
 
 
 def _text_similarity(a: str, b: str) -> float:
-    """Jaccard similarity on character sets."""
+    """Word-level Jaccard similarity — prevents long subtitles with shared chars from matching."""
     if not a or not b:
         return 0.0
-    a_chars = set(a.lower().strip())
-    b_chars = set(b.lower().strip())
-    intersection = len(a_chars & b_chars)
-    union = len(a_chars | b_chars)
+    a_words = set(a.lower().split())
+    b_words = set(b.lower().split())
+    intersection = len(a_words & b_words)
+    union = len(a_words | b_words)
     return intersection / union if union > 0 else 0.0
+
+
+def _word_count(text: str) -> int:
+    return len(text.lower().split())
+
+
+def _is_text_fragment(a: str, b: str) -> bool:
+    """Return True when one text is a likely subtitle fragment of the other."""
+    a = a.lower().strip()
+    b = b.lower().strip()
+    if not a or not b or a == b:
+        return False
+
+    if _word_count(a) <= _word_count(b):
+        short, long = a, b
+    else:
+        short, long = b, a
+
+    padded_short = f" {short} "
+    padded_long = f" {long} "
+    if padded_short not in padded_long:
+        return False
+
+    short_words = _word_count(short)
+    long_words = _word_count(long)
+    return short_words >= 2 or (len(short) >= 4 and long_words <= 6)
+
+
+def _should_replace_best_text(current: str, current_conf: float, new_text: str, new_conf: float) -> bool:
+    if not current:
+        return True
+
+    current_words = _word_count(current)
+    new_words = _word_count(new_text)
+    if new_words > current_words:
+        return new_conf >= current_conf - 0.20
+    if new_words == current_words:
+        return new_conf > current_conf
+    return False
 
 
 def _entry_y_center(e: SubtitleEntry) -> float:
@@ -78,9 +117,11 @@ class SubtitleHistory:
         self._entries: Dict[str, SubtitleEntry] = {}
         self._last_cleanup = time.time()
 
-    def _find_similar(self, norm_text: str, threshold: float = 0.45) -> Optional[SubtitleEntry]:
+    def _find_similar(self, norm_text: str, threshold: float = 0.6) -> Optional[SubtitleEntry]:
         """Find existing entry with similar text (fuzzy match)."""
         for key, entry in self._entries.items():
+            if _is_text_fragment(norm_text, key):
+                return entry
             if _text_similarity(norm_text, key) >= threshold:
                 return entry
         return None

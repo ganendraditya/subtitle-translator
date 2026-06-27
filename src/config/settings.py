@@ -5,9 +5,13 @@ DEFAULT = {
     "source_lang": "en",
     "target_lang": "id",
     "crop_bottom": 0.15,
-    "conf_thresh": 0.7,
+    "conf_thresh": 0.85,
     "capture_crop": {"left": 0.0, "right": 1.0},
-    "yolo_model": "models/yolov8s-subtitle.pt",
+    "capture_mode": "unset",
+    "yolo_model": "yolo/epoch51",
+    "detector_backend": "onnx",
+    "device": "auto",
+    "window_hwnd": None,
 }
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config.json")
