@@ -28,6 +28,12 @@ def _motion_ratio(mask: np.ndarray, bbox: list) -> float:
     return float(np.count_nonzero(region)) / total
 
 
+def _is_subtitle_band(bbox: list, frame_h: int) -> bool:
+    ys = [float(pt[1]) for pt in bbox]
+    cy = (min(ys) + max(ys)) / 2
+    return cy < frame_h * 0.28 or cy > frame_h * 0.62
+
+
 def filter_motion_detections(
     detections: list[dict],
     frame: np.ndarray,
@@ -57,6 +63,11 @@ def filter_motion_detections(
     if global_motion < global_motion_floor:
         return detections, curr_gray
 
-    filtered = [d for d in detections if _motion_ratio(mask, d["bbox"]) >= motion_threshold]
+    filtered = [
+        d
+        for d in detections
+        if _is_subtitle_band(d["bbox"], frame.shape[0])
+        or _motion_ratio(mask, d["bbox"]) >= motion_threshold
+    ]
 
     return filtered if filtered else detections, curr_gray

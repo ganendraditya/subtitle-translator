@@ -1,6 +1,6 @@
 # Subtitle Translator
 
-Real-time screen subtitle translator for Windows. It captures the screen or a selected window, detects subtitle regions, runs OCR, translates the text, and displays a click-through PyQt overlay.
+Real-time screen subtitle translator for Windows. It helps when you find a video, stream, or other media with subtitles in a language you do not understand: the app captures the screen or a selected window, detects subtitle regions, runs OCR, translates the text, and displays a click-through PyQt overlay.
 
 > Status: active development, pre-alpha.
 
@@ -8,7 +8,7 @@ Real-time screen subtitle translator for Windows. It captures the screen or a se
 
 - Screen/window capture: dxcam and Windows `PrintWindow`
 - Subtitle detection: YOLO via Ultralytics and ONNX Runtime
-- OCR: PaddleOCR in a subprocess, with EasyOCR fallback code still present
+- OCR: PaddleOCR in a subprocess
 - Translation: MarianMT / Helsinki-NLP, with 2-hop routing through English
 - Overlay/UI: PyQt6 tray app and transparent click-through overlay windows
 
@@ -18,6 +18,8 @@ Real-time screen subtitle translator for Windows. It captures the screen or a se
 python -m venv venv
 .\venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
+
+The default requirements target NVIDIA GPU acceleration for ONNX Runtime and PaddleOCR. CPU-only setups may need to replace `onnxruntime-gpu` with `onnxruntime` and `paddlepaddle-gpu` with `paddlepaddle`.
 
 Download or export a compatible subtitle detector model, then place it at:
 

@@ -1,5 +1,6 @@
 import os
 os.environ.setdefault("YOLO_AUTOINSTALL", "0")
+import re
 import sys
 import time
 import traceback
@@ -22,6 +23,7 @@ from subtitle.text_filters import (
     is_feedback_text,
     is_overlay_echo,
     is_overlay_text,
+    is_ui_noise_text,
     normalize_ocr,
     translation_key,
 )
@@ -53,7 +55,64 @@ def bbox_center_y(det: dict) -> float:
     return (min(ys) + max(ys)) / 2
 
 
-HOLD_SECONDS = 0.9
+HOLD_SECONDS = 1.0
+_SENTENCE_RE = re.compile(r"\S.*?(?:[.!?]+(?=\s|$)|$)")
+_TERMINAL_PUNCT_RE = re.compile(r"([.!?]+)[\"')\]]*$")
+_MONTH_ID = {
+    "january": "Januari",
+    "february": "Februari",
+    "march": "Maret",
+    "april": "April",
+    "may": "Mei",
+    "june": "Juni",
+    "july": "Juli",
+    "august": "Agustus",
+    "september": "September",
+    "october": "Oktober",
+    "november": "November",
+    "december": "Desember",
+}
+_MONTH_NAMES_RE = "|".join(_MONTH_ID)
+_DATE_RE = re.compile(
+    rf"^(?P<prefix>[\"'(\[]*)(?P<month>{_MONTH_NAMES_RE})\s*(?P<days>\d{{1,2}}(?:st|nd|rd|th)?(?:\s*,\s*\d{{1,2}}(?:st|nd|rd|th)?)*)(?P<punct>[.!?]*)(?P<suffix>[\"')\]]*)$",
+    re.IGNORECASE,
+)
+
+
+def _split_translation_segments(text: str) -> list[str]:
+    segments = [match.group(0).strip() for match in _SENTENCE_RE.finditer(text)]
+    return [segment for segment in segments if segment]
+
+
+def _postprocess_translation(source: str, translated: str, src: str, tgt: str) -> str:
+    if src == "en" and tgt == "id" and not translated.startswith("["):
+        translated = re.sub(r"\bChaos\b", "Kekacauan", translated)
+        translated = re.sub(r"\bApakah I\b", "Apakah aku", translated)
+        if translated.strip() == "I":
+            translated = translated.replace("I", "Aku")
+
+    source_punct = _TERMINAL_PUNCT_RE.search(source.strip())
+    translated_punct = _TERMINAL_PUNCT_RE.search(translated.strip())
+    if source_punct:
+        punct = source_punct.group(1)
+        if punct == "..." and (not translated_punct or translated_punct.group(1) != "..."):
+            translated = re.sub(r"[.!?]+([\"')\]]*)$", r"\1", translated.rstrip())
+            translated = f"{translated}..."
+    return translated
+
+
+def _translate_known_segment(segment: str, src: str, tgt: str) -> str | None:
+    if src != "en" or tgt != "id":
+        return None
+
+    match = _DATE_RE.match(segment.strip())
+    if match:
+        month = _MONTH_ID[match.group("month").lower()]
+        day_numbers = re.findall(r"\d{1,2}", match.group("days"))
+        days = ", ".join(day_numbers)
+        return f"{match.group('prefix')}{days} {month}{match.group('punct')}{match.group('suffix')}"
+
+    return None
 
 
 class App:
@@ -109,7 +168,6 @@ class App:
         self._bridge_bot.text_ready.connect(self._overlay_bot.set_text)
 
         device = _resolve_device(self._settings.get("device", "auto"))
-        OCREngine.use_paddle(True)
         OCREngine.get_instance(device=device, lang=self._settings.source_lang)
         use_gpu = device != "cpu"
         self._translation = TranslationEngine(use_gpu=use_gpu)
@@ -190,7 +248,6 @@ class App:
         self._detector = SubtitleDetector(
             self._settings.get("yolo_model", "models/yolov8s-subtitle.pt"),
             device=device,
-            backend=self._settings.get("detector_backend", "onnx"),
         )
         self._detector.load()
 
@@ -340,11 +397,11 @@ class App:
                 cleaned = []
                 for d in group:
                     t = d["text"].strip()
-                    if is_overlay_text(t) or is_overlay_echo(t, recent_overlays):
+                    if is_overlay_text(t) or is_ui_noise_text(t) or is_overlay_echo(t, recent_overlays):
                         continue
                     t = clean_ocr_text(t)
                     t = normalize_ocr(t)
-                    if is_feedback_text(t) or is_overlay_echo(t, recent_overlays):
+                    if is_feedback_text(t) or is_ui_noise_text(t) or is_overlay_echo(t, recent_overlays):
                         continue
                     if t and len(t) >= 3:
                         cleaned.append({**d, "text": t})
@@ -389,8 +446,8 @@ class App:
             print(f"[Worker] groups={len(ocr_groups)} top_texts={top_texts} bot_texts={bot_texts}")
             if top_texts:
                 source = "\n".join(top_sources)
-                joined = " ".join(top_texts)
-                translated = joined if same_lang else self._translate(joined, src, tgt)
+                joined = "\n".join(top_texts)
+                translated = joined if same_lang else self._translate_lines(top_texts, src, tgt)
                 overlay_text = f"({src}) {translated}" if same_lang else f"({tgt}) {translated}"
                 result["top"] = {
                     "text": overlay_text,
@@ -400,8 +457,8 @@ class App:
                 }
             if bot_texts:
                 source = "\n".join(bot_sources)
-                joined = " ".join(bot_texts)
-                translated = joined if same_lang else self._translate(joined, src, tgt)
+                joined = "\n".join(bot_texts)
+                translated = joined if same_lang else self._translate_lines(bot_texts, src, tgt)
                 overlay_text = f"({src}) {translated}" if same_lang else f"({tgt}) {translated}"
                 result["bot"] = {
                     "text": overlay_text,
@@ -472,6 +529,56 @@ class App:
         except RuntimeError:
             return "[Model loading...]"
 
+    def _translate_lines(self, lines: list[str], src: str, tgt: str) -> str:
+        if self._translation is None:
+            return "[Error]"
+
+        line_segments = [_split_translation_segments(line) for line in lines]
+        flat_segments = [segment for segments in line_segments for segment in segments]
+        if not flat_segments:
+            return ""
+
+        translated_segments: list[str | None] = []
+        missing: list[str] = []
+        missing_indexes: list[int] = []
+        for segment in flat_segments:
+            known = _translate_known_segment(segment, src, tgt)
+            if known is not None:
+                translated_segments.append(known)
+                print(f"[TranslateIO] {src}->{tgt} {segment!r} => {known!r}")
+                continue
+
+            key = (src, tgt, translation_key(segment))
+            cached = self._translation_cache.get(key)
+            if cached is None:
+                translated_segments.append(None)
+                missing.append(segment)
+                missing_indexes.append(len(translated_segments) - 1)
+            else:
+                translated_segments.append(cached)
+
+        if missing:
+            try:
+                results = self._translation.translate(missing, source_lang=src, target_lang=tgt)
+            except RuntimeError:
+                return "[Model loading...]"
+
+            for idx, segment, result in zip(missing_indexes, missing, results):
+                text = result.get("translation", "[Error]")
+                text = _postprocess_translation(segment, text, src, tgt)
+                print(f"[TranslateIO] {src}->{tgt} {segment!r} => {text!r}")
+                translated_segments[idx] = text
+                if not text.startswith("["):
+                    if len(self._translation_cache) > 256:
+                        self._translation_cache.pop(next(iter(self._translation_cache)))
+                    self._translation_cache[(src, tgt, translation_key(segment))] = text
+
+        translated_iter = iter(t or "[Error]" for t in translated_segments)
+        translated_lines: list[str] = []
+        for segments in line_segments:
+            translated_lines.append(" ".join(next(translated_iter) for _ in segments))
+        return "\n".join(translated_lines)
+
     def _show_settings(self) -> None:
         dialog = SettingsDialog()
         if dialog.exec() == SettingsDialog.DialogCode.Accepted:
@@ -493,7 +600,6 @@ class App:
                 self._detector = SubtitleDetector(
                     self._settings.get("yolo_model", "models/yolov8s-subtitle.pt"),
                     device=device,
-                    backend=self._settings.get("detector_backend", "onnx"),
                 )
                 self._detector.load()
 

@@ -1,8 +1,9 @@
 dxcam>=0.3.0
-easyocr>=1.7.2
 PyQt6>=6.6.0
 opencv-python>=4.9.0
 numpy>=1.24.0
+paddleocr>=2.10.0
+paddlepaddle-gpu>=2.6.2
 transformers>=4.40.0
 torch>=2.0.0
 torchvision>=0.15.0
@@ -10,3 +11,4 @@ sentencepiece>=0.2.0
 protobuf>=3.20.0
 sacremoses>=0.1.0
 ultralytics>=8.0.0
+onnxruntime-gpu>=1.20.1

@@ -9,7 +9,6 @@ DEFAULT = {
     "capture_crop": {"left": 0.0, "right": 1.0},
     "capture_mode": "unset",
     "yolo_model": "yolo/epoch51",
-    "detector_backend": "onnx",
     "device": "auto",
     "window_hwnd": None,
 }
